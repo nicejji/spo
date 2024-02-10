@@ -42,17 +42,17 @@ void mat_mul(float *a, float *b, float *c, int size) {
 
 // MUTLI THREAD
 //
-struct CalcThreadParams {
+typedef struct {
   float *a;
   float *b;
   float *c;
   int size;
   int from;
   int to;
-};
+} CalcThreadParams;
 
 void *calc_rows_thread(void *arg) {
-  struct CalcThreadParams *p = arg;
+  CalcThreadParams *p = arg;
   for (int i = p->from; i < p->to; i++)
     for (int j = 0; j < p->size; j++) {
       p->c[i * p->size + j] = calc_el(p->a, p->b, p->size, i, j);
@@ -65,7 +65,7 @@ void mat_mul_threaded(float *a, float *b, float *c, int size) {
   int chunk_size = size / num_cores;
   int remainder = size % num_cores;
   pthread_t threads[num_cores];
-  struct CalcThreadParams params[num_cores];
+  CalcThreadParams params[num_cores];
   for (int i = 0; i < num_cores; i++) {
     params[i].a = a;
     params[i].b = b;
