@@ -3,16 +3,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
-// All matrices are squared
-#define SIZE 1500
 #define MIN_NUM -10.0
 #define MAX_NUM 10.0
 
 void mat_fill_rand(float *m, int size) {
   for (int i = 0; i < size * size; i++)
-    m[i] =
-        MIN_NUM + (float)rand() / (float)(RAND_MAX / (int)(MAX_NUM - MIN_NUM));
+    m[i] = MIN_NUM + rand() / (RAND_MAX / (MAX_NUM - MIN_NUM));
 }
 
 void mat_print(float *m, int size) {
@@ -24,8 +23,8 @@ void mat_print(float *m, int size) {
   }
 }
 
-// SINGLE THREAD
-//
+// All matrices are squared
+
 float calc_el(float *a, float *b, int size, int i, int j) {
   float sum = 0.0;
   for (int k = 0; k < size; k++) {
@@ -40,8 +39,6 @@ void mat_mul(float *a, float *b, float *c, int size) {
       c[i * size + j] = calc_el(a, b, size, i, j);
 }
 
-// MUTLI THREAD
-//
 typedef struct {
   float *a;
   float *b;
@@ -58,10 +55,11 @@ void *calc_rows_thread(void *arg) {
       p->c[i * p->size + j] = calc_el(p->a, p->b, p->size, i, j);
     }
   return NULL;
-};
+}
 
 void mat_mul_threaded(float *a, float *b, float *c, int size) {
-  int num_cores = 8;
+  long num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+  printf("Cores: %ld\n", num_cores);
   int chunk_size = size / num_cores;
   int remainder = size % num_cores;
   pthread_t threads[num_cores];
@@ -82,36 +80,63 @@ void mat_mul_threaded(float *a, float *b, float *c, int size) {
     pthread_join(threads[i], NULL);
 }
 
-// Allocate static memory (arrays can be too big for stack)
-static float a[SIZE * SIZE];
-static float b[SIZE * SIZE];
-static float c[SIZE * SIZE];
-
 int main(int argc, char *argv[]) {
-  bool is_threaded = argc > 1 && strcmp(argv[1], "threaded") == 0;
+  // Default args
+  bool is_threaded = false;
+  bool is_logged = false;
+  int size = 1000;
 
-  printf("%d %s\n", SIZE, is_threaded ? "THREADED" : "SINGLE");
+  // Parse args
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "threaded") == 0)
+      is_threaded = true;
+    if (strcmp(argv[i], "logged") == 0)
+      is_logged = true;
+    if (strncmp(argv[i], "size=", 5) == 0) {
+      char *rest = argv[i] + 5;
+      int new_size = atoi(rest);
+      if (new_size != 0)
+        size = new_size;
+    }
+  }
+
+  // Allocate memory on the heap
+  float *a = malloc(sizeof(float) * size * size);
+  float *b = malloc(sizeof(float) * size * size);
+  float *c = malloc(sizeof(float) * size * size);
+
+  // Print size
+  printf("Size: %d\n", size);
 
   // Fill matrices
-  // srand(time(0));
-  mat_fill_rand(a, SIZE);
-  mat_fill_rand(b, SIZE);
+  srand(time(NULL));
+  rand();
+  mat_fill_rand(a, size);
+  mat_fill_rand(b, size);
 
   // Proccess
   if (is_threaded)
-    mat_mul_threaded(a, b, c, SIZE);
+    mat_mul_threaded(a, b, c, size);
   else
-    mat_mul(a, b, c, SIZE);
+    mat_mul(a, b, c, size);
 
   // Log results
-  // printf("A = \n\n");
-  // mat_print(a, SIZE);
-  // printf("\n");
-  // printf("B = \n\n");
-  // mat_print(b, SIZE);
-  // printf("\n");
-  // printf("C = A * B = \n\n");
-  // mat_print(c, SIZE);
+  if (is_logged) {
+    printf("\nResults:\n");
+    printf("A = \n\n");
+    mat_print(a, size);
+    printf("\n");
+    printf("B = \n\n");
+    mat_print(b, size);
+    printf("\n");
+    printf("C = A * B = \n\n");
+    mat_print(c, size);
+  }
+
+  // Cleanup memory
+  free(c);
+  free(b);
+  free(a);
 
   return 0;
 }
