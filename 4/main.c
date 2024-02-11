@@ -27,61 +27,6 @@ void mat_print(float *m, int size) {
 
 // All matrices are squared
 
-float calc_el(float *a, float *b, int size, int i, int j) {
-  float sum = 0.0;
-  for (int k = 0; k < size; k++) {
-    sum += a[i * size + k] * b[k * size + j];
-  }
-  return sum;
-}
-
-void mat_mul(float *a, float *b, float *c, int size) {
-  for (int i = 0; i < size; i++)
-    for (int j = 0; j < size; j++)
-      c[i * size + j] = calc_el(a, b, size, i, j);
-}
-
-typedef struct {
-  float *a;
-  float *b;
-  float *c;
-  int size;
-  int from;
-  int to;
-} CalcThreadParams;
-
-void *calc_rows_thread(void *arg) {
-  CalcThreadParams *p = arg;
-  for (int i = p->from; i < p->to; i++)
-    for (int j = 0; j < p->size; j++) {
-      p->c[i * p->size + j] = calc_el(p->a, p->b, p->size, i, j);
-    }
-  return NULL;
-}
-
-void mat_mul_threaded(float *a, float *b, float *c, int size) {
-  long num_cores = sysconf(_SC_NPROCESSORS_ONLN);
-  printf("Cores: %ld\n", num_cores);
-  int chunk_size = size / num_cores;
-  int remainder = size % num_cores;
-  pthread_t threads[num_cores];
-  CalcThreadParams params[num_cores];
-  for (int i = 0; i < num_cores; i++) {
-    params[i].a = a;
-    params[i].b = b;
-    params[i].c = c;
-    params[i].size = size;
-    params[i].from = chunk_size * i;
-    params[i].to =
-        params[i].from + chunk_size + (i == num_cores - 1 ? remainder : 0);
-  }
-  for (int i = 0; i < num_cores; i++)
-    pthread_create(&threads[i], NULL, calc_rows_thread, &params[i]);
-
-  for (int i = 0; i < num_cores; i++)
-    pthread_join(threads[i], NULL);
-}
-
 int main(int argc, char *argv[]) {
   MPI_Init(&argc, &argv);
   int num_cores;
